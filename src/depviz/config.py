@@ -13,6 +13,10 @@ PROGRAM_NAME = "depviz"
 DEFAULT_REGISTRY_URL = "https://registry.npmjs.org"
 ALLOWED_URL_SCHEMES = ("http", "https")
 MAX_NPM_NAME_LENGTH = 214
+SHOW_CONFIG = "config"
+SHOW_DIRECT = "direct"
+SHOW_CHOICES = (SHOW_CONFIG, SHOW_DIRECT)
+DEFAULT_SHOW = SHOW_DIRECT
 TEST_PACKAGE_PATTERN = re.compile(r"[A-Z]+")
 NPM_PACKAGE_PATTERN = re.compile(
     r"(?:@[a-z0-9\-~][a-z0-9\-._~]*/)?[a-z0-9\-~][a-z0-9\-._~]*"
@@ -28,6 +32,7 @@ class Config:
     test_mode: bool
     ascii_tree: bool
     filter_substring: str
+    show: str = DEFAULT_SHOW
 
 
 class ConfigArgumentParser(argparse.ArgumentParser):
@@ -38,13 +43,8 @@ class ConfigArgumentParser(argparse.ArgumentParser):
         raise ConfigError(f"неверные аргументы командной строки: {message}")
 
 
-def build_parser() -> ConfigArgumentParser:
-    """Создать парсер опций командной строки."""
-    parser = ConfigArgumentParser(
-        prog=PROGRAM_NAME,
-        description="Визуализация графа зависимостей npm-пакета.",
-        allow_abbrev=False,
-    )
+def add_source_options(parser: argparse.ArgumentParser) -> None:
+    """Добавить опции, определяющие источник данных о пакетах."""
     parser.add_argument(
         "-p", "--package", help="имя анализируемого пакета"
     )
@@ -59,6 +59,10 @@ def build_parser() -> ConfigArgumentParser:
         action="store_true",
         help="режим тестового репозитория: --repo задает путь к файлу",
     )
+
+
+def add_output_options(parser: argparse.ArgumentParser) -> None:
+    """Добавить опции, определяющие состав и вид вывода."""
     parser.add_argument(
         "-a",
         "--ascii-tree",
@@ -71,6 +75,24 @@ def build_parser() -> ConfigArgumentParser:
         dest="filter_substring",
         help="не учитывать пакеты, в имени которых есть подстрока",
     )
+    parser.add_argument(
+        "-s",
+        "--show",
+        choices=SHOW_CHOICES,
+        default=DEFAULT_SHOW,
+        help="что вывести: config - параметры, direct - прямые зависимости",
+    )
+
+
+def build_parser() -> ConfigArgumentParser:
+    """Создать парсер опций командной строки."""
+    parser = ConfigArgumentParser(
+        prog=PROGRAM_NAME,
+        description="Визуализация графа зависимостей npm-пакета.",
+        allow_abbrev=False,
+    )
+    add_source_options(parser)
+    add_output_options(parser)
     return parser
 
 
@@ -162,4 +184,5 @@ def parse_config(argv: Optional[Sequence[str]] = None) -> Config:
         test_mode=namespace.test_mode,
         ascii_tree=namespace.ascii_tree,
         filter_substring=validate_filter(namespace.filter_substring),
+        show=namespace.show,
     )

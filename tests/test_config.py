@@ -6,7 +6,9 @@ import unittest
 
 from depviz.config import (
     DEFAULT_REGISTRY_URL,
+    DEFAULT_SHOW,
     MAX_NPM_NAME_LENGTH,
+    SHOW_CONFIG,
     parse_config,
 )
 from depviz.errors import ConfigError
@@ -37,6 +39,7 @@ class TestRealMode(unittest.TestCase):
         self.assertFalse(config.test_mode)
         self.assertFalse(config.ascii_tree)
         self.assertEqual(config.filter_substring, "")
+        self.assertEqual(config.show, DEFAULT_SHOW)
 
     def test_scoped_package_is_accepted(self) -> None:
         """Пакет с областью видимости считается корректным."""
@@ -150,3 +153,13 @@ class TestFilterAndFlags(unittest.TestCase):
         """Опция без значения приводит к ошибке."""
         with self.assertRaises(ConfigError):
             parse_config(["-p"])
+
+    def test_show_value_is_kept(self) -> None:
+        """Выбранное действие вывода сохраняется в конфигурации."""
+        config = parse_config(["-p", REAL_PACKAGE, "--show", SHOW_CONFIG])
+        self.assertEqual(config.show, SHOW_CONFIG)
+
+    def test_unknown_show_value_is_rejected(self) -> None:
+        """Неизвестное действие вывода приводит к ошибке."""
+        with self.assertRaises(ConfigError):
+            parse_config(["-p", REAL_PACKAGE, "--show", "everything"])
