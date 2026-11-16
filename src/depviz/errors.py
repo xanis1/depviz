@@ -6,7 +6,7 @@ class ConfigError(Exception):
 
 
 class FetchError(Exception):
-    """Ошибка получения или разбора метаданных пакета."""
+    """Ошибка получения, разбора или анализа данных о пакетах."""
 
 
 class HttpStatusError(FetchError):
@@ -35,3 +35,7 @@ class PackageNotFoundError(FetchError):
 
 class MetadataFormatError(FetchError):
     """Метаданные пакета имеют неожиданный формат."""
+
+
+class GraphError(FetchError):
+    """Граф зависимостей невозможно построить."""

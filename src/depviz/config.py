@@ -15,8 +15,9 @@ ALLOWED_URL_SCHEMES = ("http", "https")
 MAX_NPM_NAME_LENGTH = 214
 SHOW_CONFIG = "config"
 SHOW_DIRECT = "direct"
-SHOW_CHOICES = (SHOW_CONFIG, SHOW_DIRECT)
-DEFAULT_SHOW = SHOW_DIRECT
+SHOW_GRAPH = "graph"
+SHOW_CHOICES = (SHOW_CONFIG, SHOW_DIRECT, SHOW_GRAPH)
+DEFAULT_SHOW = SHOW_GRAPH
 TEST_PACKAGE_PATTERN = re.compile(r"[A-Z]+")
 NPM_PACKAGE_PATTERN = re.compile(
     r"(?:@[a-z0-9\-~][a-z0-9\-._~]*/)?[a-z0-9\-~][a-z0-9\-._~]*"
@@ -80,7 +81,10 @@ def add_output_options(parser: argparse.ArgumentParser) -> None:
         "--show",
         choices=SHOW_CHOICES,
         default=DEFAULT_SHOW,
-        help="что вывести: config - параметры, direct - прямые зависимости",
+        help=(
+            "что вывести: config - параметры, direct - прямые "
+            "зависимости, graph - граф зависимостей"
+        ),
     )
 
 
@@ -175,14 +179,27 @@ def validate_filter(substring: Optional[str]) -> str:
     return substring
 
 
+def validate_filter_keeps_root(package: str, substring: str) -> None:
+    """Убедиться, что фильтр не исключает анализируемый пакет."""
+    if substring and substring in package:
+        raise ConfigError(
+            f"пакет '{package}' содержит подстроку фильтра "
+            f"'{substring}' и был бы исключен из анализа"
+        )
+
+
 def parse_config(argv: Optional[Sequence[str]] = None) -> Config:
     """Разобрать аргументы командной строки и проверить параметры."""
     namespace = build_parser().parse_args(argv)
+    test_mode = namespace.test_mode
+    package = validate_package(namespace.package, test_mode)
+    substring = validate_filter(namespace.filter_substring)
+    validate_filter_keeps_root(package, substring)
     return Config(
-        package=validate_package(namespace.package, namespace.test_mode),
-        repo=resolve_repo(namespace.repo, namespace.test_mode),
-        test_mode=namespace.test_mode,
+        package=package,
+        repo=resolve_repo(namespace.repo, test_mode),
+        test_mode=test_mode,
         ascii_tree=namespace.ascii_tree,
-        filter_substring=validate_filter(namespace.filter_substring),
+        filter_substring=substring,
         show=namespace.show,
     )

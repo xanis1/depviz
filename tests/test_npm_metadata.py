@@ -4,7 +4,11 @@ import unittest
 from typing import Any
 
 from depviz.errors import MetadataFormatError
-from depviz.npm_metadata import get_direct_dependencies
+from depviz.npm_metadata import (
+    get_direct_dependencies,
+    registry_dependency_names,
+    resolve_registry_name,
+)
 
 PACKAGE = "demo"
 VERSION = "1.2.3"
@@ -71,3 +75,50 @@ class TestGetDirectDependencies(unittest.TestCase):
             with self.subTest(manifest=manifest):
                 with self.assertRaises(MetadataFormatError):
                     get_direct_dependencies(make_metadata(manifest), PACKAGE)
+
+
+class TestResolveRegistryName(unittest.TestCase):
+    """Проверки определения имени пакета в реестре npm."""
+
+    def test_plain_ranges_keep_dependency_name(self) -> None:
+        """Обычные версии и диапазоны не меняют имя зависимости."""
+        ranges = ["^1.2.3", "~2.0", "1.0.0", "*", "latest", ">=1 <3", "1 || 2"]
+        for requirement in ranges:
+            with self.subTest(requirement=requirement):
+                resolved = resolve_registry_name("dep", requirement)
+                self.assertEqual(resolved, "dep")
+
+    def test_alias_gives_real_package_name(self) -> None:
+        """Алиас npm: заменяется настоящим именем пакета."""
+        aliases = {
+            "npm:real@^1.0.0": "real",
+            "npm:real": "real",
+            "npm:@scope/real@2.0.0": "@scope/real",
+            "npm:@scope/real": "@scope/real",
+        }
+        for requirement, expected in aliases.items():
+            with self.subTest(requirement=requirement):
+                resolved = resolve_registry_name("dep", requirement)
+                self.assertEqual(resolved, expected)
+
+    def test_non_registry_requirements_are_skipped(self) -> None:
+        """Git, URL, файловые и GitHub-зависимости пропускаются."""
+        sources = [
+            "github:user/repo", "user/repo", "git+https://host/repo.git",
+            "https://host/pkg.tgz", "file:../pkg", "workspace:*", "npm:",
+        ]
+        for requirement in sources:
+            with self.subTest(requirement=requirement):
+                self.assertIsNone(resolve_registry_name("dep", requirement))
+
+    def test_names_are_unique_and_ordered(self) -> None:
+        """Совпавшие после замены алиасов имена объединяются."""
+        dependencies = {
+            "a-dep": "1.0.0",
+            "a-dep-cjs": "npm:a-dep@^1.0.0",
+            "z-dep": "2.0.0",
+            "git-dep": "github:user/repo",
+        }
+        self.assertEqual(
+            registry_dependency_names(dependencies), ["a-dep", "z-dep"]
+        )

@@ -3,56 +3,27 @@
 import sys
 from typing import Optional, Sequence
 
-from depviz.collector import collect_direct_dependencies
-from depviz.config import SHOW_CONFIG, Config, parse_config
+from depviz.collector import collect_direct_dependencies, collect_graph
+from depviz.config import SHOW_CONFIG, SHOW_DIRECT, Config, parse_config
 from depviz.errors import ConfigError, FetchError
-from depviz.npm_metadata import DirectDependencies
+from depviz.report import (
+    format_config,
+    format_direct_dependencies,
+    format_graph,
+)
 
 EXIT_OK = 0
 EXIT_CONFIG_ERROR = 2
 EXIT_FETCH_ERROR = 3
-NOT_SET_LABEL = "<не задано>"
-
-
-def format_flag(value: bool) -> str:
-    """Представить логический флаг строкой для вывода."""
-    return "true" if value else "false"
-
-
-def config_to_pairs(config: Config) -> list[tuple[str, str]]:
-    """Преобразовать конфигурацию в список пар ключ-значение."""
-    return [
-        ("package", config.package),
-        ("repo", config.repo),
-        ("test_mode", format_flag(config.test_mode)),
-        ("ascii_tree", format_flag(config.ascii_tree)),
-        ("filter", config.filter_substring or NOT_SET_LABEL),
-        ("show", config.show),
-    ]
-
-
-def format_config(config: Config) -> str:
-    """Сформировать текст с параметрами в формате ключ-значение."""
-    pairs = config_to_pairs(config)
-    return "\n".join(f"{key}: {value}" for key, value in pairs)
-
-
-def format_direct_dependencies(result: DirectDependencies) -> str:
-    """Сформировать текст со списком прямых зависимостей пакета."""
-    title = f"Прямые зависимости {result.package}@{result.version}"
-    if not result.dependencies:
-        return f"{title}: отсутствуют"
-    lines = [f"{title} ({len(result.dependencies)}):"]
-    for name, requirement in result.dependencies.items():
-        lines.append(f"  {name} ({requirement})")
-    return "\n".join(lines)
 
 
 def build_output(config: Config) -> str:
     """Выполнить выбранное действие и вернуть текст для вывода."""
     if config.show == SHOW_CONFIG:
         return format_config(config)
-    return format_direct_dependencies(collect_direct_dependencies(config))
+    if config.show == SHOW_DIRECT:
+        return format_direct_dependencies(collect_direct_dependencies(config))
+    return format_graph(collect_graph(config))
 
 
 def report_error(error: Exception, exit_code: int) -> int:

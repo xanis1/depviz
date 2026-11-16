@@ -1,7 +1,7 @@
 """Разбор метаданных npm-пакета: версия и прямые зависимости."""
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from depviz.errors import MetadataFormatError
 
@@ -9,6 +9,8 @@ DIST_TAGS_FIELD = "dist-tags"
 VERSIONS_FIELD = "versions"
 DEPENDENCIES_FIELD = "dependencies"
 LATEST_TAG = "latest"
+NPM_ALIAS_PREFIX = "npm:"
+NON_REGISTRY_MARKERS = ("/", ":")
 
 
 @dataclass(frozen=True)
@@ -78,3 +80,32 @@ def get_direct_dependencies(
     manifest = find_version_manifest(metadata, package, version)
     dependencies = read_dependencies(manifest, package)
     return DirectDependencies(package, version, dependencies)
+
+
+def parse_alias_target(alias: str) -> Optional[str]:
+    """Выделить имя пакета из значения вида имя@диапазон."""
+    head, separator, _range = alias.rpartition("@")
+    target = head if separator and head else alias
+    return target or None
+
+
+def resolve_registry_name(name: str, requirement: str) -> Optional[str]:
+    """Определить имя пакета в реестре npm.
+
+    Для алиаса вида npm:имя@диапазон возвращается настоящее имя пакета,
+    для зависимостей из git, URL или файла - None.
+    """
+    if requirement.startswith(NPM_ALIAS_PREFIX):
+        return parse_alias_target(requirement[len(NPM_ALIAS_PREFIX):])
+    if any(marker in requirement for marker in NON_REGISTRY_MARKERS):
+        return None
+    return name
+
+
+def registry_dependency_names(dependencies: dict[str, str]) -> list[str]:
+    """Получить уникальные имена реестровых зависимостей по порядку."""
+    resolved = (
+        resolve_registry_name(name, requirement)
+        for name, requirement in dependencies.items()
+    )
+    return list(dict.fromkeys(name for name in resolved if name))

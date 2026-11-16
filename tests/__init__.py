@@ -9,3 +9,7 @@ SOURCE_DIRECTORY = os.path.join(
 
 if SOURCE_DIRECTORY not in sys.path:
     sys.path.insert(0, SOURCE_DIRECTORY)
+
+DATA_DIRECTORY = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "data"
+)
