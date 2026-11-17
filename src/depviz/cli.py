@@ -3,6 +3,7 @@
 import sys
 from typing import Optional, Sequence
 
+from depviz.ascii_tree import format_ascii_tree
 from depviz.collector import (
     collect_direct_dependencies,
     collect_graph,
@@ -10,11 +11,13 @@ from depviz.collector import (
 )
 from depviz.config import (
     SHOW_CONFIG,
+    SHOW_D2,
     SHOW_DIRECT,
     SHOW_REVERSE,
     Config,
     parse_config,
 )
+from depviz.d2 import format_d2
 from depviz.errors import ConfigError, FetchError
 from depviz.report import (
     format_config,
@@ -28,6 +31,18 @@ EXIT_CONFIG_ERROR = 2
 EXIT_FETCH_ERROR = 3
 
 
+def build_graph_output(config: Config) -> str:
+    """Построить граф и вывести его в выбранном виде и, если нужно, деревом."""
+    graph = collect_graph(config)
+    if config.show == SHOW_D2:
+        text = format_d2(graph)
+    else:
+        text = format_graph(graph)
+    if config.ascii_tree:
+        return f"{text}\n\n{format_ascii_tree(graph)}"
+    return text
+
+
 def build_output(config: Config) -> str:
     """Выполнить выбранное действие и вернуть текст для вывода."""
     if config.show == SHOW_CONFIG:
@@ -36,7 +51,7 @@ def build_output(config: Config) -> str:
         return format_direct_dependencies(collect_direct_dependencies(config))
     if config.show == SHOW_REVERSE:
         return format_reverse(collect_reverse_dependencies(config))
-    return format_graph(collect_graph(config))
+    return build_graph_output(config)
 
 
 def report_error(error: Exception, exit_code: int) -> int:

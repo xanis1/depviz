@@ -33,6 +33,11 @@ def run_direct(package: str, repo_url: str) -> MainResult:
     return run_main(["-p", package, "-r", repo_url, "-s", "direct"])
 
 
+def run_graph(package: str, repo_url: str, *options: str) -> MainResult:
+    """Вывести список связей графа пакета из репозитория по URL."""
+    return run_main(["-p", package, "-r", repo_url, "-s", "graph", *options])
+
+
 def run_main(argv: list[str]) -> MainResult:
     """Запустить main и вернуть код завершения, stdout и stderr."""
     out_buffer = io.StringIO()
@@ -130,7 +135,7 @@ class TestShowDirect(unittest.TestCase):
 def graph_lines(file_name: str, *options: str) -> MainResult:
     """Построить граф пакета A из файла тестового репозитория."""
     path = os.path.join(DATA_DIRECTORY, file_name)
-    return run_main(["-t", "-p", "A", "-r", path, *options])
+    return run_main(["-t", "-p", "A", "-r", path, "-s", "graph", *options])
 
 
 class TestShowGraphTestRepository(unittest.TestCase):
@@ -324,6 +329,124 @@ class TestShowReverse(unittest.TestCase):
         self.assertIn("только с тестовым репозиторием", result.errors)
 
 
+class TestShowD2(unittest.TestCase):
+    """Проверки вывода описания графа на языке D2."""
+
+    def test_d2_is_printed_by_default(self) -> None:
+        """Без опции --show выводится описание графа на D2."""
+        path = os.path.join(DATA_DIRECTORY, "diamond.txt")
+        result = run_main(["-t", "-p", "A", "-r", path])
+        expected = ['"A" -> "B"', '"A" -> "C"', '"B" -> "D"', '"C" -> "D"']
+        self.assertEqual(result.code, EXIT_OK)
+        self.assertEqual(result.output.splitlines(), expected)
+
+    def test_d2_follows_breadth_first_order(self) -> None:
+        """Связи в описании идут в порядке обхода графа в ширину."""
+        path = os.path.join(DATA_DIRECTORY, "mixed.txt")
+        lines = run_main(["-t", "-p", "A", "-r", path]).output.splitlines()
+        self.assertEqual(lines[:3], ['"A" -> "B"', '"A" -> "C"', '"A" -> "D"'])
+        self.assertEqual(len(lines), 15)
+
+    def test_cycle_is_described_in_d2(self) -> None:
+        """Циклическая зависимость присутствует в описании D2."""
+        path = os.path.join(DATA_DIRECTORY, "cycle.txt")
+        result = run_main(["-t", "-p", "A", "-r", path])
+        self.assertIn('"C" -> "A"', result.output.splitlines())
+
+    def test_filter_is_applied_to_d2(self) -> None:
+        """Исключенные фильтром пакеты не попадают в описание D2."""
+        path = os.path.join(DATA_DIRECTORY, "simple.txt")
+        result = run_main(["-t", "-p", "A", "-r", path, "-f", "C"])
+        self.assertEqual(
+            result.output.splitlines(), ['"A" -> "B"', '"B" -> "D"']
+        )
+
+    def test_single_package_d2(self) -> None:
+        """Для пакета без зависимостей выводится одна строка."""
+        responses = {"leaf": make_packument("leaf", "1.0.0", {})}
+        with FakeRegistry(responses) as registry:
+            result = run_main(["-p", "leaf", "-r", registry.url])
+        self.assertEqual(result.output.splitlines(), ['"leaf"'])
+
+    def test_scoped_packages_are_quoted(self) -> None:
+        """Имена с @, / и точками оформляются корректно."""
+        responses = {
+            "@scope/lib": make_packument(
+                "@scope/lib", "1.0.0", {"lodash.merge": "1", "left-pad": "1"}
+            ),
+            "lodash.merge": make_packument("lodash.merge", "1.0.0", {}),
+            "left-pad": make_packument("left-pad", "1.0.0", {}),
+        }
+        with FakeRegistry(responses) as registry:
+            result = run_main(["-p", "@scope/lib", "-r", registry.url])
+        expected = [
+            '"@scope/lib" -> "left-pad"',
+            '"@scope/lib" -> "lodash.merge"',
+        ]
+        self.assertEqual(result.output.splitlines(), expected)
+
+
+class TestShowAsciiTree(unittest.TestCase):
+    """Проверки вывода ASCII-дерева по параметру --ascii-tree."""
+
+    def test_tree_follows_d2_when_flag_is_set(self) -> None:
+        """С флагом -a после D2 выводится дерево зависимостей."""
+        path = os.path.join(DATA_DIRECTORY, "diamond.txt")
+        result = run_main(["-t", "-p", "A", "-r", path, "-a"])
+        expected = [
+            '"A" -> "B"',
+            '"A" -> "C"',
+            '"B" -> "D"',
+            '"C" -> "D"',
+            "",
+            "A",
+            "|-- B",
+            "|   `-- D",
+            "`-- C",
+            "    `-- D",
+        ]
+        self.assertEqual(result.code, EXIT_OK)
+        self.assertEqual(result.output.splitlines(), expected)
+
+    def test_tree_is_absent_without_flag(self) -> None:
+        """Без флага дерево не выводится."""
+        path = os.path.join(DATA_DIRECTORY, "diamond.txt")
+        result = run_main(["-t", "-p", "A", "-r", path])
+        self.assertNotIn("|--", result.output)
+
+    def test_tree_follows_graph_listing(self) -> None:
+        """Режим graph тоже поддерживает вывод дерева."""
+        path = os.path.join(DATA_DIRECTORY, "simple.txt")
+        result = run_main(["-t", "-p", "A", "-r", path, "-s", "graph", "-a"])
+        lines = result.output.splitlines()
+        self.assertIn("A -> B, C", lines)
+        self.assertIn("|-- B", lines)
+
+    def test_cycle_marks_in_tree(self) -> None:
+        """Цикл в дереве помечается."""
+        path = os.path.join(DATA_DIRECTORY, "cycle.txt")
+        result = run_main(["-t", "-p", "A", "-r", path, "-a"])
+        self.assertIn("        `-- A (цикл)", result.output.splitlines())
+
+    def test_flag_does_not_change_config_output(self) -> None:
+        """Режим config выводит только параметры."""
+        result = run_main(["-p", "express", "-a", "-s", "config"])
+        self.assertIn("ascii_tree: true", result.output.splitlines())
+        self.assertNotIn("|--", result.output)
+
+    def test_tree_for_registry_packages(self) -> None:
+        """Дерево строится и для репозитория по URL."""
+        responses = {
+            "app": make_packument("app", "1.0.0", {"lib": "1"}),
+            "lib": make_packument("lib", "1.0.0", {}),
+        }
+        with FakeRegistry(responses) as registry:
+            result = run_main(["-p", "app", "-r", registry.url, "-a"])
+        self.assertEqual(
+            result.output.splitlines()[-2:], ["app", "`-- lib"]
+        )
+
+
 class TestShowGraphRegistry(unittest.TestCase):
     """Проверки вывода графа для репозитория по URL."""
 
@@ -335,7 +458,7 @@ class TestShowGraphRegistry(unittest.TestCase):
             "util": make_packument("util", "2.1.0", {}),
         }
         with FakeRegistry(responses) as registry:
-            result = run_main(["-p", "app", "-r", registry.url])
+            result = run_graph("app", registry.url)
         expected = [
             "Граф зависимостей пакета app: узлов 3, ребер 3",
             "app -> lib, util",
@@ -354,7 +477,7 @@ class TestShowGraphRegistry(unittest.TestCase):
             "two": make_packument("two", "1.0.0", {"one": "1"}),
         }
         with FakeRegistry(responses) as registry:
-            result = run_main(["-p", "one", "-r", registry.url])
+            result = run_graph("one", registry.url)
         self.assertEqual(result.code, EXIT_OK)
         self.assertIn("  one -> two -> one", result.output.splitlines())
 
@@ -365,7 +488,7 @@ class TestShowGraphRegistry(unittest.TestCase):
             "lib": make_packument("lib", "1.0.0", {}),
         }
         with FakeRegistry(responses) as registry:
-            result = run_main(["-p", "app", "-r", registry.url, "-f", "skip"])
+            result = run_graph("app", registry.url, "-f", "skip")
         requested = [request.path for request in registry.requests]
         self.assertEqual(result.code, EXIT_OK)
         self.assertEqual(requested, ["app", "lib"])
@@ -382,7 +505,7 @@ class TestShowGraphRegistry(unittest.TestCase):
             "real-name": make_packument("real-name", "2.3.0", {}),
         }
         with FakeRegistry(responses) as registry:
-            result = run_main(["-p", "app", "-r", registry.url])
+            result = run_graph("app", registry.url)
         self.assertEqual(result.code, EXIT_OK)
         self.assertEqual(result.output.splitlines()[1], "app -> real-name")
 
@@ -390,7 +513,7 @@ class TestShowGraphRegistry(unittest.TestCase):
         """Отсутствие транзитивной зависимости в репозитории - ошибка."""
         responses = {"app": make_packument("app", "1.0.0", {"gone": "1"})}
         with FakeRegistry(responses) as registry:
-            result = run_main(["-p", "app", "-r", registry.url])
+            result = run_graph("app", registry.url)
         self.assertEqual(result.code, EXIT_FETCH_ERROR)
         self.assertIn("'gone'", result.errors)
 

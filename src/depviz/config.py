@@ -17,8 +17,15 @@ SHOW_CONFIG = "config"
 SHOW_DIRECT = "direct"
 SHOW_GRAPH = "graph"
 SHOW_REVERSE = "reverse"
-SHOW_CHOICES = (SHOW_CONFIG, SHOW_DIRECT, SHOW_GRAPH, SHOW_REVERSE)
-DEFAULT_SHOW = SHOW_GRAPH
+SHOW_D2 = "d2"
+SHOW_CHOICES = (
+    SHOW_CONFIG,
+    SHOW_DIRECT,
+    SHOW_GRAPH,
+    SHOW_REVERSE,
+    SHOW_D2,
+)
+DEFAULT_SHOW = SHOW_D2
 TEST_PACKAGE_PATTERN = re.compile(r"[A-Z]+")
 NPM_PACKAGE_PATTERN = re.compile(
     r"(?:@[a-z0-9\-~][a-z0-9\-._~]*/)?[a-z0-9\-~][a-z0-9\-._~]*"
@@ -69,7 +76,7 @@ def add_output_options(parser: argparse.ArgumentParser) -> None:
         "-a",
         "--ascii-tree",
         action="store_true",
-        help="выводить зависимости в формате ASCII-дерева",
+        help="дополнительно вывести граф в виде ASCII-дерева",
     )
     parser.add_argument(
         "-f",
@@ -84,8 +91,8 @@ def add_output_options(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_SHOW,
         help=(
             "что вывести: config - параметры, direct - прямые "
-            "зависимости, graph - граф зависимостей, reverse - "
-            "обратные зависимости"
+            "зависимости, graph - список связей графа, reverse - "
+            "обратные зависимости, d2 - описание графа на языке D2"
         ),
     )
 

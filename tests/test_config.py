@@ -164,6 +164,11 @@ class TestFilterAndFlags(unittest.TestCase):
         config = parse_config(["-p", REAL_PACKAGE, "-s", "reverse"])
         self.assertEqual(config.show, "reverse")
 
+    def test_d2_is_the_default_output(self) -> None:
+        """Без опции --show выводится описание графа на языке D2."""
+        self.assertEqual(DEFAULT_SHOW, "d2")
+        self.assertEqual(parse_config(["-p", REAL_PACKAGE]).show, "d2")
+
     def test_unknown_show_value_is_rejected(self) -> None:
         """Неизвестное действие вывода приводит к ошибке."""
         with self.assertRaises(ConfigError):
