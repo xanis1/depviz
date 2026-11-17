@@ -7,6 +7,9 @@ from depviz.npm_metadata import DirectDependencies
 
 NOT_SET_LABEL = "<не задано>"
 NO_DEPENDENCIES_LABEL = "(нет зависимостей)"
+FORWARD_ARROW = " -> "
+REVERSE_ARROW = " <- "
+FIRST_DEPENDENT_LEVEL = 1
 
 
 def format_flag(value: bool) -> str:
@@ -50,12 +53,14 @@ def format_node(package: str, dependencies: list[str]) -> str:
     return f"{package} -> {', '.join(dependencies)}"
 
 
-def format_cycles(cycles: list[list[str]]) -> list[str]:
+def format_cycles(
+    cycles: list[list[str]], arrow: str = FORWARD_ARROW
+) -> list[str]:
     """Сформировать строки со списком циклических зависимостей."""
     if not cycles:
         return ["Циклические зависимости: не обнаружены"]
     lines = [f"Циклические зависимости ({len(cycles)}):"]
-    lines.extend(f"  {' -> '.join(cycle)}" for cycle in cycles)
+    lines.extend(f"  {arrow.join(cycle)}" for cycle in cycles)
     return lines
 
 
@@ -69,4 +74,19 @@ def format_graph(graph: DependencyGraph) -> str:
     for package, dependencies in graph.edges.items():
         lines.append(format_node(package, dependencies))
     lines.extend(format_cycles(find_cycles(graph)))
+    return "\n".join(lines)
+
+
+def format_reverse(graph: DependencyGraph) -> str:
+    """Сформировать текст с обратными зависимостями пакета по уровням."""
+    levels = graph.levels[FIRST_DEPENDENT_LEVEL:]
+    total = sum(len(level) for level in levels)
+    title = f"Обратные зависимости пакета {graph.root}"
+    if not total:
+        lines = [f"{title}: отсутствуют"]
+    else:
+        lines = [f"{title} (всего {total}):"]
+        for number, level in enumerate(levels, start=FIRST_DEPENDENT_LEVEL):
+            lines.append(f"  уровень {number}: {', '.join(level)}")
+    lines.extend(format_cycles(find_cycles(graph), REVERSE_ARROW))
     return "\n".join(lines)

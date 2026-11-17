@@ -3,7 +3,7 @@
 import unittest
 
 from depviz.errors import GraphError
-from depviz.graph import build_graph
+from depviz.graph import GraphBuilder, build_graph
 
 OK_CHAIN_LENGTH = 300
 TOO_DEEP_CHAIN_LENGTH = 5000
@@ -130,3 +130,35 @@ class TestDepth(unittest.TestCase):
         source = MemorySource(make_chain(TOO_DEEP_CHAIN_LENGTH))
         with self.assertRaises(GraphError):
             build_graph("P0", source)
+
+
+class TestLevels(unittest.TestCase):
+    """Проверки разбиения пакетов по уровням обхода."""
+
+    def test_levels_follow_breadth_first_order(self) -> None:
+        """Пакеты распределяются по расстоянию от корня."""
+        source = MemorySource(
+            {"A": ["B", "C"], "B": ["D"], "C": ["D", "E"], "D": [], "E": []}
+        )
+        graph = build_graph("A", source)
+        self.assertEqual(graph.levels, [["A"], ["B", "C"], ["D", "E"]])
+
+    def test_package_appears_on_its_shortest_level_only(self) -> None:
+        """Пакет, достижимый разными путями, указан на ближайшем уровне."""
+        source = MemorySource({"A": ["B", "C"], "B": ["C"], "C": []})
+        graph = build_graph("A", source)
+        self.assertEqual(graph.levels, [["A"], ["B", "C"]])
+
+    def test_cycle_does_not_add_levels(self) -> None:
+        """Возврат к уже обнаруженному пакету не создает новый уровень."""
+        source = MemorySource({"A": ["B"], "B": ["A"]})
+        graph = build_graph("A", source)
+        self.assertEqual(graph.levels, [["A"], ["B"]])
+
+    def test_builder_can_be_reused(self) -> None:
+        """Повторный запуск построителя не накапливает старые уровни."""
+        builder = GraphBuilder(MemorySource({"A": ["B"], "B": []}))
+        builder.build("A")
+        graph = builder.build("B")
+        self.assertEqual(graph.levels, [["B"]])
+        self.assertEqual(list(graph.edges), ["B"])

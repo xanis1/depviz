@@ -3,13 +3,24 @@
 import sys
 from typing import Optional, Sequence
 
-from depviz.collector import collect_direct_dependencies, collect_graph
-from depviz.config import SHOW_CONFIG, SHOW_DIRECT, Config, parse_config
+from depviz.collector import (
+    collect_direct_dependencies,
+    collect_graph,
+    collect_reverse_dependencies,
+)
+from depviz.config import (
+    SHOW_CONFIG,
+    SHOW_DIRECT,
+    SHOW_REVERSE,
+    Config,
+    parse_config,
+)
 from depviz.errors import ConfigError, FetchError
 from depviz.report import (
     format_config,
     format_direct_dependencies,
     format_graph,
+    format_reverse,
 )
 
 EXIT_OK = 0
@@ -23,6 +34,8 @@ def build_output(config: Config) -> str:
         return format_config(config)
     if config.show == SHOW_DIRECT:
         return format_direct_dependencies(collect_direct_dependencies(config))
+    if config.show == SHOW_REVERSE:
+        return format_reverse(collect_reverse_dependencies(config))
     return format_graph(collect_graph(config))
 
 

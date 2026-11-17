@@ -225,6 +225,105 @@ class TestShowGraphTestRepository(unittest.TestCase):
         self.assertIn("строка 1", result.errors)
 
 
+def reverse_lines(
+    file_name: str, package: str, *options: str
+) -> MainResult:
+    """Найти обратные зависимости пакета в файле тестового репозитория."""
+    path = os.path.join(DATA_DIRECTORY, file_name)
+    argv = ["-t", "-p", package, "-r", path, "-s", "reverse", *options]
+    return run_main(argv)
+
+
+class TestShowReverse(unittest.TestCase):
+    """Проверки вывода обратных зависимостей."""
+
+    def test_chain_of_dependents(self) -> None:
+        """Зависимые пакеты выводятся по уровням."""
+        result = reverse_lines("simple.txt", "D")
+        expected = [
+            "Обратные зависимости пакета D (всего 2):",
+            "  уровень 1: B",
+            "  уровень 2: A",
+            "Циклические зависимости: не обнаружены",
+        ]
+        self.assertEqual(result.code, EXIT_OK)
+        self.assertEqual(result.output.splitlines(), expected)
+
+    def test_shared_dependency_has_several_direct_dependents(self) -> None:
+        """У общей зависимости несколько прямых зависимых пакетов."""
+        result = reverse_lines("diamond.txt", "D")
+        lines = result.output.splitlines()
+        self.assertEqual(lines[0], "Обратные зависимости пакета D (всего 3):")
+        self.assertEqual(lines[1], "  уровень 1: B, C")
+        self.assertEqual(lines[2], "  уровень 2: A")
+
+    def test_root_package_has_no_dependents(self) -> None:
+        """У корневого пакета обратных зависимостей нет."""
+        result = reverse_lines("simple.txt", "A")
+        self.assertEqual(
+            result.output.splitlines()[0],
+            "Обратные зависимости пакета A: отсутствуют",
+        )
+
+    def test_deep_graph_levels(self) -> None:
+        """В смешанном графе зависимые пакеты делятся на пять уровней."""
+        result = reverse_lines("mixed.txt", "K")
+        expected_levels = [
+            "  уровень 1: J",
+            "  уровень 2: F, G",
+            "  уровень 3: B, C, D",
+            "  уровень 4: A",
+            "  уровень 5: H",
+        ]
+        self.assertEqual(result.output.splitlines()[1:6], expected_levels)
+
+    def test_cycle_is_reported_in_reverse_direction(self) -> None:
+        """Цикл выводится в направлении 'зависит от'."""
+        result = reverse_lines("cycle.txt", "A")
+        self.assertIn("  A <- C <- B <- A", result.output.splitlines())
+
+    def test_cycle_that_does_not_include_target(self) -> None:
+        """Цикл вдали от целевого пакета также обнаруживается."""
+        result = reverse_lines("mixed.txt", "K")
+        self.assertIn("  A <- H <- D <- A", result.output.splitlines())
+
+    def test_self_dependency_is_not_listed_as_dependent(self) -> None:
+        """Сам пакет не входит в свой список, но цикл показан."""
+        result = reverse_lines("self_loop.txt", "A")
+        self.assertIn("отсутствуют", result.output)
+        self.assertIn("  A <- A", result.output.splitlines())
+
+    def test_cycle_between_unreachable_packages(self) -> None:
+        """Зависимость внутри цикла находится независимо от корня A."""
+        result = reverse_lines("disconnected.txt", "Y")
+        self.assertIn("  уровень 1: X", result.output.splitlines())
+        self.assertIn("  Y <- X <- Y", result.output.splitlines())
+
+    def test_filter_excludes_dependent_package(self) -> None:
+        """Исключенный фильтром пакет не попадает в список зависимых."""
+        result = reverse_lines("diamond.txt", "D", "-f", "B")
+        lines = result.output.splitlines()
+        self.assertEqual(lines[0], "Обратные зависимости пакета D (всего 2):")
+        self.assertEqual(lines[1], "  уровень 1: C")
+
+    def test_filter_that_removes_target_is_rejected(self) -> None:
+        """Фильтр, исключающий сам пакет, отклоняется."""
+        result = reverse_lines("diamond.txt", "D", "-f", "D")
+        self.assertEqual(result.code, EXIT_CONFIG_ERROR)
+
+    def test_unknown_package_is_reported(self) -> None:
+        """Пакет, которого нет в файле, дает ошибку получения данных."""
+        result = reverse_lines("simple.txt", "Z")
+        self.assertEqual(result.code, EXIT_FETCH_ERROR)
+        self.assertIn("не найден", result.errors)
+
+    def test_registry_mode_is_not_supported(self) -> None:
+        """Для репозитория по URL режим reverse недоступен."""
+        result = run_main(["-p", "express", "-s", "reverse"])
+        self.assertEqual(result.code, EXIT_CONFIG_ERROR)
+        self.assertIn("только с тестовым репозиторием", result.errors)
+
+
 class TestShowGraphRegistry(unittest.TestCase):
     """Проверки вывода графа для репозитория по URL."""
 

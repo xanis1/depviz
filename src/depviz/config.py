@@ -16,7 +16,8 @@ MAX_NPM_NAME_LENGTH = 214
 SHOW_CONFIG = "config"
 SHOW_DIRECT = "direct"
 SHOW_GRAPH = "graph"
-SHOW_CHOICES = (SHOW_CONFIG, SHOW_DIRECT, SHOW_GRAPH)
+SHOW_REVERSE = "reverse"
+SHOW_CHOICES = (SHOW_CONFIG, SHOW_DIRECT, SHOW_GRAPH, SHOW_REVERSE)
 DEFAULT_SHOW = SHOW_GRAPH
 TEST_PACKAGE_PATTERN = re.compile(r"[A-Z]+")
 NPM_PACKAGE_PATTERN = re.compile(
@@ -83,7 +84,8 @@ def add_output_options(parser: argparse.ArgumentParser) -> None:
         default=DEFAULT_SHOW,
         help=(
             "что вывести: config - параметры, direct - прямые "
-            "зависимости, graph - граф зависимостей"
+            "зависимости, graph - граф зависимостей, reverse - "
+            "обратные зависимости"
         ),
     )
 

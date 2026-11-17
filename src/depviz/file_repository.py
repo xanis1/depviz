@@ -20,11 +20,24 @@ class FileRepository:
         self.packages = packages
         self.origin = origin
 
-    def get_dependencies(self, package: str) -> list[str]:
-        """Вернуть прямые зависимости пакета из описания графа."""
+    def require_package(self, package: str) -> None:
+        """Убедиться, что пакет описан в репозитории."""
         if package not in self.packages:
             raise PackageNotFoundError(package, self.origin)
+
+    def get_dependencies(self, package: str) -> list[str]:
+        """Вернуть прямые зависимости пакета из описания графа."""
+        self.require_package(package)
         return list(self.packages[package])
+
+    def get_dependents(self, package: str) -> list[str]:
+        """Вернуть пакеты, которые напрямую зависят от данного пакета."""
+        self.require_package(package)
+        return [
+            name
+            for name, dependencies in self.packages.items()
+            if package in dependencies
+        ]
 
 
 def validate_package_name(name: str, line_number: int) -> None:

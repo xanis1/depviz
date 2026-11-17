@@ -15,6 +15,31 @@ class DependencySource(Protocol):
         raise NotImplementedError
 
 
+class DependentsProvider(Protocol):
+    """Хранилище, умеющее находить пакеты, зависящие от заданного."""
+
+    def get_dependents(self, package: str) -> list[str]:
+        """Вернуть имена пакетов, напрямую зависящих от данного."""
+        raise NotImplementedError
+
+
+class ReverseSource:
+    """Источник обратных связей для обхода графа в обратную сторону.
+
+    Метод get_dependencies возвращает не зависимости пакета, а пакеты,
+    которые зависят от него, поэтому тот же обход графа находит
+    обратные зависимости.
+    """
+
+    def __init__(self, provider: DependentsProvider) -> None:
+        """Запомнить хранилище, в котором ищутся зависимые пакеты."""
+        self.provider = provider
+
+    def get_dependencies(self, package: str) -> list[str]:
+        """Вернуть пакеты, напрямую зависящие от данного пакета."""
+        return self.provider.get_dependents(package)
+
+
 class RegistrySource:
     """Источник данных: npm-репозиторий, доступный по URL."""
 

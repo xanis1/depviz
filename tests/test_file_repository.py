@@ -93,3 +93,38 @@ class TestLoadFileRepository(unittest.TestCase):
             load_text("A: B\nbroken line\n")
         self.assertIn("graph.txt", str(context.exception))
         self.assertIn("строка 2", str(context.exception))
+
+
+class TestGetDependents(unittest.TestCase):
+    """Проверки поиска пакетов, зависящих от заданного."""
+
+    def test_dependents_follow_file_order(self) -> None:
+        """Зависимые пакеты возвращаются в порядке описания в файле."""
+        repository = load_text("A: C\nB: C\nC:\n")
+        self.assertEqual(repository.get_dependents("C"), ["A", "B"])
+
+    def test_only_direct_dependents_are_returned(self) -> None:
+        """Косвенно зависящие пакеты не возвращаются."""
+        repository = load_text("A: B\nB: C\nC:\n")
+        self.assertEqual(repository.get_dependents("C"), ["B"])
+
+    def test_package_nobody_depends_on(self) -> None:
+        """У пакета, от которого никто не зависит, список пуст."""
+        repository = load_text("A: B\nB:\n")
+        self.assertEqual(repository.get_dependents("A"), [])
+
+    def test_self_dependency_counts(self) -> None:
+        """Пакет, зависящий от самого себя, является своим зависимым."""
+        repository = load_text("A: A\n")
+        self.assertEqual(repository.get_dependents("A"), ["A"])
+
+    def test_package_mentioned_only_as_dependency(self) -> None:
+        """Пакет без собственной строки тоже имеет зависимых."""
+        repository = load_text("A: Z\n")
+        self.assertEqual(repository.get_dependents("Z"), ["A"])
+
+    def test_unknown_package_is_reported(self) -> None:
+        """Запрос зависимых неизвестного пакета дает ошибку."""
+        repository = load_text("A: B\n")
+        with self.assertRaises(PackageNotFoundError):
+            repository.get_dependents("Q")

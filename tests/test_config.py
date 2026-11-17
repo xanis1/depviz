@@ -159,6 +159,11 @@ class TestFilterAndFlags(unittest.TestCase):
         config = parse_config(["-p", REAL_PACKAGE, "--show", SHOW_CONFIG])
         self.assertEqual(config.show, SHOW_CONFIG)
 
+    def test_reverse_show_value_is_accepted(self) -> None:
+        """Значение reverse допустимо для опции --show."""
+        config = parse_config(["-p", REAL_PACKAGE, "-s", "reverse"])
+        self.assertEqual(config.show, "reverse")
+
     def test_unknown_show_value_is_rejected(self) -> None:
         """Неизвестное действие вывода приводит к ошибке."""
         with self.assertRaises(ConfigError):

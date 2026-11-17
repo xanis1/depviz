@@ -6,7 +6,7 @@ from depviz.file_repository import load_file_repository
 from depviz.graph import DependencyGraph, build_graph
 from depviz.npm_metadata import DirectDependencies, get_direct_dependencies
 from depviz.registry import fetch_metadata
-from depviz.sources import DependencySource, RegistrySource
+from depviz.sources import DependencySource, RegistrySource, ReverseSource
 
 
 def create_source(config: Config) -> DependencySource:
@@ -31,3 +31,14 @@ def collect_direct_dependencies(config: Config) -> DirectDependencies:
         )
     metadata = fetch_metadata(config.repo, config.package)
     return get_direct_dependencies(metadata, config.package)
+
+
+def collect_reverse_dependencies(config: Config) -> DependencyGraph:
+    """Построить граф обратных зависимостей пакета по тестовому файлу."""
+    if not config.test_mode:
+        raise ConfigError(
+            "режим reverse работает только с тестовым репозиторием "
+            "(--test-mode): реестр npm не хранит обратных зависимостей"
+        )
+    source = ReverseSource(load_file_repository(config.repo))
+    return build_graph(config.package, source, config.filter_substring)
